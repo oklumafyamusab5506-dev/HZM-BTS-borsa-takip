@@ -1,0 +1,268 @@
+{% extends 'base.html' %}
+
+{% block title %}Grafik ve Metrik İstasyonu - HZM BTS{% endblock %}
+
+{% block extra_css %}
+/* Mobil Uyumlu Grid Yapısı */
+.matrix-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 20px; }
+.matrix-box { background: var(--card-bg); border: 1px solid var(--accent); border-radius: 8px; padding: 16px; min-height: 360px; display: flex; flex-direction: column; box-sizing: border-box;}
+.matrix-box.full-width { grid-column: span 2; }
+
+/* TradingView Tarzı Başlık ve Buton Düzeni */
+.matrix-title { font-size: 0.9em; font-weight: 600; color: var(--highlight); margin-top: 0; margin-bottom: 15px; border-bottom: 1px dashed var(--accent); padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;}
+
+/* HZM Minimalist Zaman Butonları */
+.timeline-btn-group { display: flex; gap: 4px; background: rgba(0,0,0,0.2); padding: 2px; border-radius: 4px; border: 1px solid var(--accent); }
+.time-btn { background: transparent; border: none; color: #6c6e75; padding: 4px 10px; font-size: 0.75em; font-weight: 600; cursor: pointer; border-radius: 3px; transition: all 0.2s; }
+.time-btn:hover { color: white; }
+.time-btn.active { background: var(--accent); color: var(--highlight); }
+
+/* Arama Kutusu Modülü */
+.search-container { position: relative; width: 160px; }
+.search-input { background: var(--bg-color); border: 1px solid var(--accent); color: white; padding: 6px 12px; border-radius: 4px; font-size: 0.85em; outline: none; width: 100%; box-sizing: border-box; }
+.search-input:focus { border-color: var(--highlight); }
+
+.search-results { position: absolute; top: 100%; left: 0; right: 0; background: #141416; border: 1px solid var(--accent); border-top: none; border-radius: 0 0 4px 4px; max-height: 180px; overflow-y: auto; z-index: 1005; display: none; box-shadow: 0 6px 16px rgba(0,0,0,0.5); }
+.search-item { padding: 8px 12px; color: #ccc; cursor: pointer; font-size: 0.82em; border-bottom: 1px solid #1a1a1f; }
+.search-item:hover { background: #232329; color: var(--highlight); }
+
+.left-title-box { display: flex; align-items: center; gap: 15px; }
+
+@media (max-width: 992px) {
+    .matrix-grid { grid-template-columns: 1fr; gap: 15px; }
+    .matrix-box.full-width { grid-column: span 1; }
+    .matrix-title { flex-direction: column; align-items: stretch; gap: 10px; }
+    .left-title-box { flex-direction: column; align-items: stretch; gap: 8px; }
+    .search-container { width: 100%; }
+    .timeline-btn-group { justify-content: space-between; }
+}
+{% endblock %}
+
+{% block content %}
+<div class="matrix-grid">
+
+    <!-- 1. GRAFİK: NAKİT AKIŞI -->
+    <div class="matrix-box">
+        <div class="matrix-title">
+            <span>⏳ HESAP NAKİT AKIŞI VE TRENDİ</span>
+            <div class="timeline-btn-group" id="nakitGroup">
+                <button class="time-btn" onclick="nakitGrafiginiGuncelle('1h', this)">Saatlik</button>
+                <button class="time-btn active" onclick="nakitGrafiginiGuncelle('1d', this)">Günlük</button>
+                <button class="time-btn" onclick="nakitGrafiginiGuncelle('1w', this)">Haftalık</button>
+                <button class="time-btn" onclick="nakitGrafiginiGuncelle('1m', this)">Aylık</button>
+                <button class="time-btn" onclick="nakitGrafiginiGuncelle('1y', this)">Yıllık</button>
+            </div>
+        </div>
+        <div style="flex: 1; position: relative; width: 100%;">
+            <canvas id="nakitAkisChart"></canvas>
+        </div>
+    </div>
+
+    <!-- 2. GRAFİK: SERMAYE DAĞILIMI -->
+    <div class="matrix-box">
+        <div class="matrix-title">📊 KURUMSAM SERMAYE DAĞILIMI (SÜTUN ARŞİVİ)</div>
+        <div style="flex: 1; position: relative; width: 100%;">
+            <canvas id="bankaBarChart"></canvas>
+        </div>
+    </div>
+
+    <!-- 3. GRAFİK: BORSA TEKNİK TAKİP GRAFİĞİ -->
+    <div class="matrix-box full-width">
+        <div class="matrix-title">
+            <div class="left-title-box">
+                <span>📈 KLASİK BORSA TEKNİK TAKİP GRAFİĞİ</span>
+                <div class="search-container">
+                    <input type="text" id="hisseAramaInput" class="search-input" placeholder="🔍 Varlık Ara..." autocomplete="off" oninput="hisseAra()">
+                    <div id="aramaSonuclari" class="search-results"></div>
+                </div>
+            </div>
+            
+            <div class="timeline-btn-group" id="borsaGroup">
+                <button class="time-btn" onclick="hisseGrafiginiGuncelle('1h', this)">Saatlik</button>
+                <button class="time-btn active" onclick="hisseGrafiginiGuncelle('1d', this)">Günlük</button>
+                <button class="time-btn" onclick="hisseGrafiginiGuncelle('1w', this)">Haftalık</button>
+                <button class="time-btn" onclick="hisseGrafiginiGuncelle('1m', this)">Aylık</button>
+                <button class="time-btn" onclick="hisseGrafiginiGuncelle('1y', this)">Yıllık</button>
+            </div>
+        </div>
+        <div style="flex: 1; position: relative; width: 100%; min-height: 300px;">
+            <canvas id="hisseBorsaChart"></canvas>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let borsaChartInstance = null;
+    let nakitChartInstance = null;
+    let aktifHisseKodu = ""; 
+    let tumPiyasaHisseleri = [];
+    let mevcutBorsaPeriyot = "1d";
+
+    const commonOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { labels: { color: '#707070', font: { size: 11, weight: '600' } } }
+        },
+        scales: {
+            x: { grid: { color: '#1a1a1e' }, ticks: { color: '#6c6e75', font: { size: 10 } } },
+            y: { grid: { color: '#1a1a1e' }, ticks: { color: '#6c6e75', font: { size: 10 } } }
+        }
+    };
+
+    async function ilkYukleme() {
+        const resDagilim = await fetch('/api/dagilim_verileri');
+        const dataDagilim = await resDagilim.json();
+
+        new Chart(document.getElementById('bankaBarChart'), {
+            type: 'bar',
+            data: {
+                labels: dataDagilim.bankalar.labels,
+                datasets: [{
+                    label: 'Varlık Hacmi (₺)',
+                    data: dataDagilim.bankalar.data,
+                    backgroundColor: 'rgba(255, 152, 0, 0.65)',
+                    borderColor: '#ff9800',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: commonOptions
+        });
+
+        try {
+            const resPiyasa = await fetch('/api/piyasa_hisse_listesi');
+            const piyasaData = await resPiyasa.json();
+
+            if (piyasaData.status === "success" && piyasaData.data.length > 0) {
+                tumPiyasaHisseleri = piyasaData.data;
+                aktifHisseKodu = tumPiyasaHisseleri[0];
+                document.getElementById('hisseAramaInput').value = aktifHisseKodu;
+            }
+        } catch (e) {
+            console.log("Piyasa senkron hatası:", e);
+        }
+
+        hisseGrafiginiGuncelle('1d', null);
+        nakitGrafiginiGuncelle('1d', null);
+    }
+
+    // NAKİT GRAFİĞİ: BORSA GRAFİĞİ İLE BİREBİR AYNI TEKNİK YAPIYA KAVUŞTU
+    async function nakitGrafiginiGuncelle(periyot, btnElement) {
+        if (btnElement) {
+            document.querySelectorAll('#nakitGroup .time-btn').forEach(b => b.classList.remove('active'));
+            btnElement.classList.add('active');
+        }
+
+        const resNakit = await fetch(`/api/nakit_akis_verisi?periyot=${periyot}`);
+        const dataNakit = await resNakit.json();
+
+        if (nakitChartInstance !== null) {
+            nakitChartInstance.destroy();
+        }
+
+        const periyotMetni = btnElement ? btnElement.innerText : "Günlük";
+
+        const ctx = document.getElementById('nakitAkisChart').getContext('2d');
+        nakitChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: dataNakit.trend_labels,
+                datasets: [{
+                    label: `Nakit Trendi - ${periyotMetni}`,
+                    data: dataNakit.nakit_trend,
+                    borderColor: '#26a69a',
+                    backgroundColor: 'rgba(38, 166, 154, 0.01)',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#26a69a',
+                    pointRadius: periyot === '1h' ? 0.5 : 2, // Saatlikte gürültü engelleme
+                    tension: 0.1,
+                    fill: true
+                }]
+            },
+            options: commonOptions
+        });
+    }
+
+    async function hisseGrafiginiGuncelle(periyot, btnElement) {
+        if (periyot) { mevcutBorsaPeriyot = periyot; }
+        if (btnElement) {
+            document.querySelectorAll('#borsaGroup .time-btn').forEach(b => b.classList.remove('active'));
+            btnElement.classList.add('active');
+        }
+        if (!aktifHisseKodu) return;
+
+        const res = await fetch(`/api/hisse_grafik_verisi/${aktifHisseKodu}?periyot=${mevcutBorsaPeriyot}`);
+        const grafikData = await res.json();
+
+        if (borsaChartInstance !== null) {
+            borsaChartInstance.destroy();
+        }
+
+        const grafikEtiketi = grafikData.symbol ? grafikData.symbol : aktifHisseKodu;
+
+        const ctx = document.getElementById('hisseBorsaChart').getContext('2d');
+        borsaChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: grafikData.labels,
+                datasets: [{
+                    label: `${grafikEtiketi} Fiyat Takip Çizgisi`,
+                    data: grafikData.data,
+                    borderColor: '#ffffff',
+                    backgroundColor: 'rgba(255, 255, 255, 0.01)',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#ff9800',
+                    pointRadius: mevcutBorsaPeriyot === '1h' ? 0.5 : 2,
+                    tension: 0.1,
+                    fill: true
+                }]
+            },
+            options: commonOptions
+        });
+    }
+
+    function hisseAra() {
+        const input = document.getElementById('hisseAramaInput');
+        const filtre = input.value.toUpperCase().trim();
+        const sonucKutusu = document.getElementById('aramaSonuclari');
+        sonucKutusu.innerHTML = '';
+        
+        if (!filtre) { sonucKutusu.style.display = 'none'; return; }
+
+        const eslesenler = tumPiyasaHisseleri.filter(hisse => hisse.includes(filtre));
+
+        if (eslesenler.length > 0) {
+            sonucKutusu.style.display = 'block';
+            eslesenler.slice(0, 8).forEach(kod => {
+                const div = document.createElement('div');
+                div.className = 'search-item';
+                div.innerText = kod;
+                div.onclick = function() {
+                    input.value = kod;
+                    aktifHisseKodu = kod;
+                    sonucKutusu.style.display = 'none';
+                    hisseGrafiginiGuncelle(mevcutBorsaPeriyot, null);
+                };
+                sonucKutusu.appendChild(div);
+            });
+        } else {
+            sonucKutusu.style.display = 'none';
+        }
+    }
+
+    document.addEventListener('click', function(e) {
+        if (e.target.id !== 'hisseAramaInput') {
+            document.getElementById('aramaSonuclari').style.display = 'none';
+        }
+    });
+
+    window.onload = function() {
+        ilkYukleme();
+    };
+</script>
+{% endblock %}

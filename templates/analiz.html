@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+
+{% block title %}Hisse Teknik Analizleri - HZM Portföy{% endblock %}
+
+{% block extra_css %}
+<style>
+.analysis-card { background: var(--card-bg); border: 1px solid var(--accent); padding: 20px; border-radius: 8px; }
+.search-box { width: 100%; padding: 12px; background: var(--bg-color); border: 1px solid var(--accent); color: white; border-radius: 4px; font-size: 1em; box-sizing: border-box; margin-bottom: 20px; }
+.search-box:focus { outline: none; border-color: var(--text-dim); }
+
+/* HZM STANDARTLARI: Canlı Grafik İstasyonu Bölümü */
+.chart-station { width: 100%; height: 450px; background: #141416; border: 1px solid var(--accent); border-radius: 6px; margin-bottom: 25px; overflow: hidden; position: relative; }
+
+.report-list { display: flex; flex-direction: column; gap: 10px; }
+.report-item { background: var(--bg-color); border: 1px solid var(--accent); padding: 15px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; text-decoration: none; transition: 0.2s; cursor: pointer; }
+.report-item:hover { border-color: var(--text-dim); background: rgba(255,255,255,0.02); }
+.report-info { display: flex; flex-direction: column; gap: 4px; text-align: left; }
+.report-title { font-weight: bold; color: var(--highlight); font-size: 1em; }
+.report-source { font-size: 0.8em; color: #ff9800; }
+.report-date { font-size: 0.85em; color: var(--text-dim); white-space: nowrap; }
+
+@media (max-width: 768px) {
+    .chart-station { height: 320px; }
+    .report-item { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .report-date { align-self: flex-end; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="analysis-card">
+    <h2 style="margin-top:0; font-weight: 500; color: var(--highlight); border-bottom: 1px solid var(--accent); padding-bottom: 10px;">📊 Aktif Hisse Teknik Analizleri ve Canlı Grafik Radarı</h2>
+    
+    <div class="chart-station" id="hzmChartContainer">
+        </div>
+
+    <input type="text" id="searchReport" class="search-box" placeholder="Hisse raporlarında canlı ara veya grafik yükle... (Örn: THYAO, EREGL)" oninput="filtreleRaporlarVeGrafikGuncelle()">
+    
+    <div id="loadingText" style="color: var(--text-dim); text-align: center; padding: 40px; font-size:0.9em;">Canlı Hisse Teknik Analiz Raporları Çekiliyor...</div>
+    
+    <div id="reportContainer" class="report-list"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+<script>
+    let tumRaporlar = [];
+    let aktifSembol = "BIST:THYAO"; // Varsayılan başlangıç grafiği
+
+    // HZM GRAFİK YÜKLEME MOTORU
+    function grafikYukle(sembol) {
+        if (!sembol) return;
+        
+        // Temiz BIST Sembolü Oluşturma Filtresi
+        let temizSembol = sembol.toUpperCase().trim().replace(".IS", "");
+        if (!temizSembol.includes(":")) {
+            temizSembol = "BIST:" + temizSembol;
+        }
+
+        aktifSembol = temizSembol;
+
+        new TradingView.widget({
+            "width": "100%",
+            "height": "100%",
+            "symbol": aktifSembol,
+            "interval": "D",
+            "timezone": "Europe/Istanbul",
+            "theme": "dark",
+            "style": "1",
+            "locale": "tr",
+            "toolbar_bg": "#141416",
+            "enable_publishing": false,
+            "hide_side_toolbar": false,
+            "allow_symbol_change": true,
+            "container_id": "hzmChartContainer"
+        });
+    }
+
+    async function canliAnalizleriGetir() {
+        try {
+            const res = await fetch('/api/canli_analiz');
+            const result = await res.json();
+            if (result.status === "success" && result.data && result.data.length > 0) {
+                tumRaporlar = result.data;
+                document.getElementById('loadingText').style.display = 'none';
+                filtreleRaporlarVeGrafikGuncelle();
+            } else {
+                document.getElementById('loadingText').innerText = "Güncel hisse teknik analizi bulunamadı.";
+            }
+        } catch (err) {
+            document.getElementById('loadingText').innerText = "Veri bağlantı hatası oluştu.";
+        }
+    }
+
+    function filtreleRaporlarVeGrafikGuncelle() {
+        const query = document.getElementById('searchReport').value.toUpperCase().trim();
+        const container = document.getElementById('reportContainer');
+        container.innerHTML = '';
+
+        // Akıllı Grafik Arama Tetikleyicisi: Eğer kullanıcı tam 4-5 haneli bir hisse kodu yazdıysa grafiği anlık değiştirir
+        if (query.length >= 4 && query.length <= 5 && !query.includes(" ")) {
+            if ("BIST:" + query !== aktifSembol) {
+                grafikYukle(query);
+            }
+        }
+
+        tumRaporlar.forEach(item => {
+            const baslikMetni = item.baslik ? item.baslik.toUpperCase() : '';
+            if (query === '' || baslikMetni.includes(query)) {
+                const a = document.createElement('div');
+                a.className = 'report-item';
+                
+                // Öğeye tıklanıldığında hem orijinal rapora gider hem de sol taraftan grafiği tetikler
+                a.onclick = function(e) {
+                    // Eğer doğrudan bir link varsa ve kullanıcı başlığa tıkladıysa yeni sekmede açsın
+                    if (item.link) {
+                        window.open(item.link, '_blank');
+                    }
+                    // Hisse ismini başlıktan süzüp grafiğe gönder
+                    const eşleşme = item.baslik.match(/[A-Z]{4,5}/);
+                    if (eşleşme) grafikYukle(eşleşme[0]);
+                };
+                
+                a.innerHTML = `
+                    <div class="report-info">
+                        <span class="report-title">${item.baslik || 'Teknik Rapor Analizi'}</span>
+                        <span class="report-source">HZM Teknik Analiz Bülteni</span>
+                    </div>
+                    <div class="report-date">📅 ${item.tarih || '-'}</div>
+                `;
+                container.appendChild(a);
+            }
+        });
+    }
+
+    // Sayfa ilk yüklendiğinde THYAO grafiğini mühürle ve verileri çek
+    window.onload = function() {
+        grafikYukle("THYAO");
+        canliAnalizleriGetir();
+    };
+</script>
+{% endblock %}
