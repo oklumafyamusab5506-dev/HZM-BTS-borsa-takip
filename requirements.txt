@@ -3,3 +3,4 @@ requests
 yfinance
 gunicorn
 APScheduler
+openpyxl
