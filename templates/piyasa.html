@@ -100,11 +100,13 @@ tr:hover { background: rgba(255,255,255,0.02); }
                 document.getElementById('radarTableWrapper').style.display = 'block';
                 tabloyuCiz(tumRadarData);
             } else {
+                document.getElementById('loadingText').innerText = "Yüklü piyasa verisi bulunamadı veya havuz boş.";
                 document.getElementById('loadingText').style.display = 'block';
                 document.getElementById('radarTableWrapper').style.display = 'none';
             }
         } catch (err) {
             console.log("Hata:", err);
+            document.getElementById('loadingText').innerText = "Radar yüklenirken bir bağlantı hatası oluştu.";
         }
     }
 
@@ -116,7 +118,7 @@ tr:hover { background: rgba(255,255,255,0.02); }
         syncBtn.disabled = true;
         syncBtn.innerText = "⚡ TARANIYOR...";
         
-        loadingText.innerText = "HZM BTS Terminali canlı borsa hattına bağlanılıyor, rasyolar hesaplanıyor...";
+        loadingText.innerText = "HZM BTS Terminali canlı borsa hattına bağlanıyor, rasyolar hesaplanıyor...";
         loadingText.style.display = 'block';
         document.getElementById('radarTableWrapper').style.display = 'none';
 
@@ -145,19 +147,19 @@ tr:hover { background: rgba(255,255,255,0.02); }
         veriler.forEach(item => {
             const tr = document.createElement('tr');
             
-            // Safe Değişim Sensörü (0'a düşme ve kırılma koruması)
+            // Safe Değişim Sensörü
             const gunlukVal = parseFloat(item.gunluk) || 0.0;
             const changeCls = gunlukVal >= 0 ? 'pos' : 'neg';
             const sign = gunlukVal >= 0 ? '+' : '';
             
+            // Hata Düzeltildi: str() yerine JS standardı olan String() veya template literal kullanıldı
             let sinyalCls = "radar-notr";
-            const sinyalMetni = item.sinyal ? str(item.sinyal) : 'Nötr';
+            const sinyalMetni = item.sinyal ? String(item.sinyal) : 'Nötr';
             if (sinyalMetni.includes("Al") || sinyalMetni.includes("Yükseliş")) sinyalCls = "radar-al";
             if (sinyalMetni.includes("Aşırı") || sinyalMetni.includes("Sinyali") || sinyalMetni.includes("Sat")) sinyalCls = "radar-sat";
 
             let scoreCls = (item.skor && item.skor >= 75) ? "high-score" : "";
 
-            // HZM Standartları: HN öneki düzeltildi, Türk Lirası simgesi yerleştirildi
             tr.innerHTML = `
                 <td style="text-align: left;"><strong style="color:var(--highlight);">${item.hisse}</strong></td>
                 <td style="color: var(--highlight);">₺ ${formatTL(item.fiyat)}</td>
@@ -208,6 +210,7 @@ tr:hover { background: rgba(255,255,255,0.02); }
         tabloyuCiz(filtrelenmis);
     });
 
+    // Sayfa açıldığında otomatik yüklemeyi başlat
     fintablesRadariniYukle();
 </script>
 {% endblock %}
